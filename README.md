@@ -3,7 +3,7 @@ This code compares two methods of tracking neurons across different sessions of 
 Here, I use
 
     1. overlaps between cells from each session in their original position with the global mask cells. 
-    Overlap is simply defined as the Jaccard index[https://en.wikipedia.org/wiki/Jaccard_index] of the respective cell from the global mask with the 
+    Overlap is simply defined as the [Jaccard index](https://en.wikipedia.org/wiki/Jaccard_index) of the respective cell from the global mask with the 
     corresponding session cell within a certain distance. The set of all pixels for each cell are the elements of the sets.
     2. Quantification measures for scoring the similarity of cell shapes after aligning their centers. 
     For this, I use [dynamic time warping](https://en.wikipedia.org/wiki/Dynamic_time_warping).
