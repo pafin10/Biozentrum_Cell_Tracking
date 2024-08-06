@@ -16,7 +16,7 @@ class Plot():
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
-    def plot_mask(self, title, idx=None, output_dir=None, session_cell=None, session_pixels=None, overlap_score = None, session=None):
+    def plot_mask(self, title, idx=None, output_dir=None, session_cell=None, session_pixels=None, overlap_score = None, session=None, alignment_score=None):
         plt.figure()
         plt.axis('equal')
 
@@ -41,9 +41,17 @@ class Plot():
                         if idx and cnt == idx:
                             x_coords_cell.append(pixel[0])
                             y_coords_cell.append(pixel[1])
+                        if idx and cnt > idx:
+                            break
         
         if session_cell is not None and session_pixels is not None and idx is not None:
             file_path = self.plot_session_cell_and_corresponding_gm_cells(idx, title, session_cell, x_coords_cell, y_coords_cell, session_pixels, output_dir)
+            if overlap_score is not None:
+                file_path = self.plot_session_cell_and_corresponding_gm_cells(idx, title, session_cell, x_coords_cell, y_coords_cell, session_pixels, output_dir, overlap_score=overlap_score)
+            if alignment_score is not None:
+                file_path = self.plot_session_cell_and_corresponding_gm_cells(idx, title, session_cell, x_coords_cell, y_coords_cell, session_pixels, output_dir, alignment_score=alignment_score)
+            if alignment_score is not None and overlap_score is not None:
+                file_path = self.plot_session_cell_and_corresponding_gm_cells(idx, title, session_cell, x_coords_cell, y_coords_cell, session_pixels, output_dir, overlap_score=overlap_score, alignment_score=alignment_score)
 
         else:
             plt.scatter(y_coords, x_coords, c='b', s=1)
@@ -57,7 +65,7 @@ class Plot():
         #plt.show()
         plt.close()
 
-    def plot_session_cell_and_corresponding_gm_cells(self, idx, title, session_cell, gm_cells_x_coord, gm_cells_y_coord, session_pixels, output_dir, overlap_score=None):
+    def plot_session_cell_and_corresponding_gm_cells(self, idx, title, session_cell, gm_cells_x_coord, gm_cells_y_coord, session_pixels, output_dir, overlap_score=None, alignment_score=None):
         y_coords_session_cell = session_pixels[session_cell][0]
         x_coords_session_cell = session_pixels[session_cell][1]
 
@@ -95,6 +103,10 @@ class Plot():
         
         if overlap_score is not None:
             plt.title(f'{title} Cell {idx} vs Session Cell {session_cell} with overlap: {overlap_score:.2f}')
+        if alignment_score is not None:
+            plt.title(f'{title} Cell {idx} vs Session Cell {session_cell} with alignment: {alignment_score:.2f}')
+        if overlap_score is not None and alignment_score is not None:
+            plt.title(f'{title} Cell {idx} vs Session Cell {session_cell} with overlap: {overlap_score:.2f} and alignment: {alignment_score:.2f}')
         
         # Ensure output directory exists
         output_dir = os.path.join(output_dir, 'Session_Cell_' + str(session_cell))
@@ -296,7 +308,7 @@ class Plot():
         plt.axis('equal')
         plt.axis('off')
         plt.savefig(os.path.join(self.output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
-        plt.show()
+        #plt.show()
         plt.close()
 
     def plot_contours(self, session_cell, overlap_cell):
@@ -308,4 +320,34 @@ class Plot():
         #output_file_path = os.path.join(output_dir, f"{title}.png")
         #plt.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
         plt.show()
+        plt.close()
+    
+    def plot_dtw_results(self, dtw, title=None, plot_type="alignment"):
+        # Compute DTW alignment
+        dtw.computeDTW()
+        
+        # Create a new figure
+        fig = plt.figure()
+        
+        # Plot the alignment
+        dtw.plot(type=plot_type)  
+        os.makedirs(os.path.join(self.output_dir, "dynamic_time_warping"), exist_ok=True)
+        os.chdir(os.path.join(self.output_dir, "dynamic_time_warping"))
+        output_dir = os.getcwd()
+        
+        plt.savefig(os.path.join(output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
+        #plt.show()
+
+        # Close the plot to free up memory
+        plt.close(fig)
+        plt.close('all')
+    
+    def plot_distribution(self, array, title=None):
+        plt.figure()
+        plt.boxplot(array)
+        plt.title(title)
+        plt.xlabel('Index')
+        plt.ylabel('Shape Similarity')
+        plt.savefig(os.path.join(self.output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
+        #plt.show()
         plt.close()

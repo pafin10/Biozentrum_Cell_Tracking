@@ -145,3 +145,7 @@ def convert_global_mask_to_list_structure(global_mask):
                     coords.append([int(pixel[0]), int(pixel[1])])
         global_mask_list.append(coords)
     return global_mask_list
+
+def compute_cell_alignment_score(overlap, dtw_distance, dtw_max, weights=[0.3, 0.7]):
+    dtw_distance = dtw_max - dtw_distance # we want higher scores to be better
+    return overlap * weights[0] + dtw_distance * weights[1]

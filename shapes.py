@@ -4,6 +4,7 @@ import os
 from utils import *
 from frechetdist import frdist
 from dtw import dtw
+from shapedtw.shapedtw import shape_dtw
 from typing import List
 
 
@@ -11,6 +12,7 @@ class Shapes():
     def __init__(self, global_mask_cell_contours, session_cell_contours):
         self.global_mask_cell_contours = global_mask_cell_contours
         self.session_cell_contours = session_cell_contours
+        self.dtw = None
     
     def translate(self, contour, xdiff, ydiff):
         y_pix = [int(round(y - ydiff)) for [x,y] in contour]
@@ -32,5 +34,21 @@ class Shapes():
         
         return cells_aligned_centers
     
-    def calculate_shape_similarity(self, cell1 : List, cell2 : List):
-        return dtw(cell1, cell2).normalizedDistance
+    class DTW():
+        def __init__(self, cell1, cell2):
+            self.cell1 = cell1
+            self.cell2 = cell2
+            self.dtw = None
+            self.computeDTW()
+        
+        def computeDTW(self):
+            self.dtw = dtw(self.cell1, self.cell2, keep_internals=True)
+        
+        def calculate_shape_similarity(self):
+            return self.dtw.normalizedDistance
+        
+        def plot(self, type="alignment"):
+            self.dtw.plot(type=type)
+
+
+    
