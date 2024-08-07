@@ -4,6 +4,8 @@ import tifffile
 import cv2
 import os
 from collections import defaultdict
+from skimage.measure import find_contours, centroid
+from skimage.draw import polygon
 
 
 def dist(centroid, centroid1):
@@ -126,8 +128,16 @@ def compute_centroids(filled_cells):
         area = np.array(area)
         if area.shape[0] == 0:
             continue  # Skip empty areas
-        centroid_x = area[:, 1].mean()  # Mean of x coordinates
-        centroid_y = area[:, 0].mean()  # Mean of y coordinates
+            
+        # Create a binary image from the cell area
+        max_y, max_x = area.max(axis=0) + 1
+        binary_image = np.zeros((max_y, max_x), dtype=np.uint8)
+        binary_image[area[:, 0], area[:, 1]] = 1
+        
+        # Compute centroid of the binary image
+        centroid_y, centroid_x = centroid(binary_image)
+        
+        # Store the centroid
         centroids[i].append([centroid_y, centroid_x])
 
     return centroids
@@ -149,3 +159,25 @@ def convert_global_mask_to_list_structure(global_mask):
 def compute_cell_alignment_score(overlap, dtw_distance, dtw_max, weights=[0.3, 0.7]):
     dtw_distance = dtw_max - dtw_distance # we want higher scores to be better
     return overlap * weights[0] + dtw_distance * weights[1]
+
+def extract_contours(session_cell_pixels):
+    session_cells_contours = []
+    for cell_pixels in session_cell_pixels: 
+        y_coords = [y for x, y in cell_pixels]
+        x_coords = [x for x, y in cell_pixels]
+
+        max_y = max(y_coords) + 2
+        max_x = max(x_coords) + 2
+        binary_image = np.zeros((max_y, max_x), dtype=bool)
+        rr, cc = polygon(y_coords, x_coords)
+        binary_image[rr, cc] = True
+        session_contours = find_contours(binary_image, level=0.5)
+        contours = [contour.astype(np.int32) for contour in session_contours]
+        session_cells_contours.append(contours)
+
+    unpacked_contours = []
+    for contour in session_cells_contours:
+        contour = contour[0]
+        unpacked_contour = [[int(coord[1]), int(coord[0])] for coord in contour]
+        unpacked_contours.append(unpacked_contour)
+    return unpacked_contours

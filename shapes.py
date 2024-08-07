@@ -21,7 +21,8 @@ class Shapes():
     
     def align_centers(self, gm_centroids, session_centroids):
         cells_aligned_centers = []
-        for i, session_centroid in enumerate(session_centroids): 
+        for i, session_centroid in session_centroids.items():
+            session_centroid = session_centroid[0] 
             for j, gm_centroid in gm_centroids.items(): 
                 gm_centroid = gm_centroid[0]
 
