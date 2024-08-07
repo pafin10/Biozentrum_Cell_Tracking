@@ -1,6 +1,5 @@
 import numpy as np
 import os 
-import random
 import pickle
 import matplotlib.pyplot as plt
 from utils import *
@@ -72,10 +71,17 @@ if __name__ == '__main__':
         n = len(statsfiles[j])
         statsfile = statsfiles[j]
         session_cells = [(statsfile[i], i) for i in range(n) if cellfiles[j][i][0]]
+        data = [cell[0] for cell in session_cells]
+        y_pixels = [cell['ypix'] for cell in data]
+        x_pixels = [cell['xpix'] for cell in data]
+        all_pixels = [[(y, x) for x, y in zip(x_pix, y_pix)] for x_pix, y_pix in zip(x_pixels, y_pixels)]
+        # calculate session centroids, more accurate than med
+        session_centroids = compute_centroids(all_pixels)
 
         for k in range(len(session_cells)): 
             session_cell = session_cells[k][0]
-            centroid1 = session_cell['med']
+            centroid1 = session_centroids[k][0] #session_cell['med']
+
             for i, (y_pix_filled_cell, x_pix_filled_cell) in enumerate(filled_cells):
                 centroid2 = list(gm_centroids[i][0])
                 if (dist(centroid1, centroid2) < distance_threshold):
@@ -89,10 +95,8 @@ if __name__ == '__main__':
                 same_cells[k] = overlap_tuples
 
         same_cells = dict(sorted(same_cells.items(), key=lambda item: item[0]))
-
-        session_centroids = [None] * len(session_cells)
-        for orig_cell_ind in same_cells.keys():
-            session_centroids[orig_cell_ind] = session_cells[orig_cell_ind][0]['med'] 
+    
+        #session_centroids[session_cell_ind] = session_cells[session_cell_ind][0]['med'] 
 
         print("There are", len(same_cells), "cells with overlap > 0.01")
         for cell, corresponding_cell in same_cells.items():
@@ -124,19 +128,20 @@ if __name__ == '__main__':
         
         # Align the centers of the cells from the session with the global mask
         global_mask_list_struct = convert_global_mask_to_list_structure(np_global_mask)
-        session_cells_list_struct = [[[x, y] for x, y in zip(cell[0], cell[1])] for cell in flattened_session_cells.values()]
-        shapes = Shapes(global_mask_list_struct, session_cells_list_struct)
+        session_cells_all_pixels_list_struct = [[[x, y] for x, y in zip(cell[0], cell[1])] for cell in flattened_session_cells.values()]
+        session_cells_contours_list_struct = extract_contours(session_cells_all_pixels_list_struct)
+
+        shapes = Shapes(global_mask_list_struct, session_cells_contours_list_struct)
         
         cells_w_aligned_centers = shapes.align_centers(gm_centroids, session_centroids)
-        """
-        if j == 1:
-            P.plot_cells_w_aligned_centers(cells_w_aligned_centers, "aligned_centers")
-        """
         
+        if j == 0:
+            P.plot_cells_w_aligned_centers(cells_w_aligned_centers, "aligned_centers_0_", session_cell_idx=0)
+                
         
         centered_cells_by_session = defaultdict(list)
 
-        # keep track of min and max DTW distance for each session for normalization
+        # TODO: do normalization per cell not globally, check how to prevent bias 
         dtw_distances = []
         for cell_pair in cells_w_aligned_centers:
             session_cell_coord = cell_pair[0][1]
@@ -145,6 +150,7 @@ if __name__ == '__main__':
             dtw_distances.append(dtw_distance)
 
         mini, maxi = min(dtw_distances), max(dtw_distances)
+        mini_normalized, maxi_normalized = 0.0, 1.0
 
         # check skew and normalize DTW distances
         # values for skew and percentiles are quite arbitrary so check for more theoretical foundations
@@ -154,8 +160,10 @@ if __name__ == '__main__':
             print("The distribution of DTW distances is quite skewed.")
             if skewness < 1:
                 mini = np.percentile(dtw_distances, 10)
+                mini_normalized = 0.1
             else: 
                 maxi = np.percentile(dtw_distances, 90)
+                maxi_normalized = 0.9
 
         if maxi == mini:
             normalized_dtw_distances = [0.0] * len(dtw_distances)
@@ -181,24 +189,29 @@ if __name__ == '__main__':
         between the aligned elements of the sequences is minimized.
         """
 
+        # This plotting is very slow, if not needed, comment out
         """for k in range(len(centered_cells_by_session)):
             for i in range(len(centered_cells_by_session[k])):
                 dtw = shapes.DTW(centered_cells_by_session[k][i][1], centered_cells_by_session[k][i][2])
                 P.plot_dtw_results(dtw, title=f"Session 1 cell {k} vs global mask cell {centered_cells_by_session[k][i][0]}")
                 """
 
-        # EFFICIENCY BOTTLENECK - one session currently takes 90 seconds to run - OPTIMIZE
         for session_cell, shape_cell_data in centered_cells_by_session.items():
             for session_cell1, overlap_cell_data in same_cells.items():
                 found = False
                 if session_cell == session_cell1:
                     for i in range(len(shape_cell_data)):
+                        found = False
                         for m in range(len(overlap_cell_data)):
                             # i.e. it is the same gobal mask cell, so we exclude those that dont pass the overlap threshold
                             if overlap_cell_data[m][1] == shape_cell_data[i][0]:
                                 dtw_distance = shape_cell_data[i][3]
                                 updated_tuple = list(overlap_cell_data[m]) + [dtw_distance]
                                 overlap_cell_data[m] = tuple(updated_tuple)
+                                found = True
+                        if not found:
+                            gm_cell_index, dtw_distance = shape_cell_data[i][0], shape_cell_data[i][3]
+                            overlap_cell_data.append((0, gm_cell_index, dtw_distance))
 
 
         # calculate weighted alignment score
@@ -208,7 +221,7 @@ if __name__ == '__main__':
                 if len(overlap_cell) == 3:
                     overlap = overlap_cell[0]
                     dtw = overlap_cell[2]
-                    alignment_score = compute_cell_alignment_score(overlap, dtw, maxi, weights=[0.1, 0.9])
+                    alignment_score = compute_cell_alignment_score(overlap=overlap, dtw_distance=dtw, dtw_max=maxi_normalized, weights=[0.5, 0.5])
                     overlap_cell = overlap_cell + (alignment_score,)
                     overlap_cell_data[i] = overlap_cell  # Update the tuple in the list
             overlap_cell_data.sort(key=lambda x: x[-1], reverse=True)
