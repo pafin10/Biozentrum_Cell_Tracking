@@ -100,7 +100,7 @@ def calculate_overlap(cell1_ypix, cell1_xpix, cell2_ypix, cell2_xpix):
 
     return overlap_ratio
 
-def fill_cells(contours, image_shape):
+def fill_cells_gm(contours, image_shape):
     filled_areas = []
     mask = np.zeros(image_shape, dtype=np.uint8)
 
@@ -156,9 +156,23 @@ def convert_global_mask_to_list_structure(global_mask):
         global_mask_list.append(coords)
     return global_mask_list
 
-def compute_cell_alignment_score(overlap, dtw_distance, dtw_max, weights=[0.3, 0.7]):
-    dtw_distance = dtw_max - dtw_distance # we want higher scores to be better
-    return overlap * weights[0] + dtw_distance * weights[1]
+def compute_cell_alignment_score(overlap, dtw_distance, centered_overlap_score, weights=[0.2, 0.3, 0.5], using_dtw=True, n_cells=None):
+    if using_dtw:
+        dtw_distance = 1 - dtw_distance # we want higher scores to be better
+    
+    if n_cells is not None:
+        if n_cells == 2 and not using_dtw:
+            return overlap * 0.3 + centered_overlap_score * 0.7
+        elif n_cells == 3:
+            if not using_dtw:
+                return overlap * 0.2 + centered_overlap_score * 0.8
+            else: 
+                weights = [0.2, 0.4, 0.4]
+        else:
+            weights = [0.2, 0.3, 0.5]
+    
+    if using_dtw:
+        return overlap * weights[0] + dtw_distance * weights[1] + centered_overlap_score * weights[2]
 
 def extract_contours(session_cell_pixels):
     session_cells_contours = []
@@ -181,3 +195,42 @@ def extract_contours(session_cell_pixels):
         unpacked_contour = [[int(coord[1]), int(coord[0])] for coord in contour]
         unpacked_contours.append(unpacked_contour)
     return unpacked_contours
+
+def fill_cells(contours, image_shape):
+
+
+    """
+    Given cell contours, return arrays of x pixels and y pixels that fill the area.
+
+    Parameters:
+    - contours: A list of contours, where each contour is itself a list of x and y pixel coordinates.
+                Example: [[x1, x2, ...], [y1, y2, ...]]
+    - image_shape: The shape of the image (height, width) within which the contours are defined.
+
+    Returns:
+    - x_pixels: A numpy array of x pixel coordinates that fill the contour area.
+    - y_pixels: A numpy array of y pixel coordinates that fill the contour area.
+    """
+
+    # Create an empty binary image (mask) with the given image shape
+    mask = np.zeros(image_shape, dtype=np.uint8)
+
+    # Convert contours into the format expected by cv2.fillPoly
+    # cv2.fillPoly expects a list of polygons, where each polygon is a Nx2 array of (x, y) points
+    contours = np.array(contours).T.reshape(-1, 1, 2)  # Reshape to (N, 1, 2) format
+
+    # Fill the contour area on the mask
+    cv2.fillPoly(mask, [contours], 1)
+
+    # Extract the x and y pixel coordinates where the mask is filled
+    y_pixels, x_pixels = np.where(mask == 1)
+
+    return x_pixels, y_pixels
+
+def generate_cyclic_permutations(arr):
+    permutations = []
+    for i in range(len(arr)):
+        perm = arr[i:] + arr[:i]
+        permutations.append(perm)
+    
+    return permutations
