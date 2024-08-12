@@ -102,11 +102,11 @@ class Plot():
         plt.title(f'{title} Cell {idx} vs Session Cell {session_cell}')
         
         if overlap_score is not None:
-            plt.title(f'{title} Cell {idx} vs Session Cell {session_cell} with overlap: {overlap_score:.2f}')
+            plt.title(f'{title} Cell {idx} vs session cell {session_cell} with overlap: {overlap_score:.2f}')
         if alignment_score is not None:
-            plt.title(f'{title} Cell {idx} vs Session Cell {session_cell} with alignment: {alignment_score:.2f}')
+            plt.title(f'{title} Cell {idx} vs session cell {session_cell} with match score: {alignment_score:.2f}')
         if overlap_score is not None and alignment_score is not None:
-            plt.title(f'{title} Cell {idx} vs Session Cell {session_cell} with overlap: {overlap_score:.2f} and alignment: {alignment_score:.2f}')
+            plt.title(f'{title} Cell {idx} vs session cell {session_cell} with overlap: {overlap_score:.2f} and match score: {alignment_score:.2f}')
         
         # Ensure output directory exists
         output_dir = os.path.join(output_dir, 'Session_Cell_' + str(session_cell))
@@ -262,16 +262,25 @@ class Plot():
         plt.close()
         os.chdir(reset)
 
-    def plot_cells_w_aligned_centers(self, cells_aligned_centers, title, session_cell_idx=None):
+    def plot_cells_w_aligned_centers(self, cells_aligned_centers, title, session_cell=None, session=None):
         plt.figure(figsize=(10, 10))
         colors = ['r', 'g', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
         legend_entries = set()
+        if session_cell is not None and session is not None: 
+            #output_dir = self.output_dir
+            output_dir = os.path.join(self.output_dir, 'Session ' + str(session))
+            os.makedirs(output_dir, exist_ok=True)
+            # Ensure output directory exists
+            output_dir = os.path.join(output_dir, 'Session_Cell_' + str(session_cell))
+            os.makedirs(output_dir, exist_ok=True)
+        else: 
+            output_dir = self.output_dir
 
         for (i, centered_session_cell_contour), (j, global_mask_cell_contour) in cells_aligned_centers:
-            if session_cell_idx is not None and i != session_cell_idx:
+            if session_cell is not None and i != session_cell:
                 continue
             
-            if session_cell_idx is not None and i == session_cell_idx:
+            if session_cell is not None and i == session_cell:
                 color = colors[j % len(colors)]  # Cycle through the colors
             else:
                 color = 'r'
@@ -281,8 +290,8 @@ class Plot():
 
             max_y = max(y_coords_session_cell) + 2
             max_x = max(x_coords_session_cell) + 2
-            binary_image = np.zeros((max_y, max_x), dtype=bool)
-            rr, cc = polygon(y_coords_session_cell, x_coords_session_cell)
+            binary_image = np.zeros((max_x, max_y), dtype=bool)
+            rr, cc = polygon(x_coords_session_cell, y_coords_session_cell)
             binary_image[rr, cc] = True
             session_contours = find_contours(binary_image, level=0.5)
 
@@ -293,8 +302,8 @@ class Plot():
                 else:
                     plt.plot(contour[:, 1], contour[:, 0], 'b', linewidth=2)
 
-            y_coords_global_mask = [y for x, y in global_mask_cell_contour]
-            x_coords_global_mask = [x for x, y in global_mask_cell_contour]
+            y_coords_global_mask = [y for y, x in global_mask_cell_contour]
+            x_coords_global_mask = [x for y, x in global_mask_cell_contour]
 
             if f"Global Mask Cell {j}" not in legend_entries:
                 plt.plot(x_coords_global_mask, y_coords_global_mask, color=color, linewidth=2, label=f"Global Mask Cell {j}")
@@ -303,11 +312,11 @@ class Plot():
                 plt.plot(x_coords_global_mask, y_coords_global_mask, color=color, linewidth=2)
 
         plt.title(title)
-        if session_cell_idx is not None:
+        if session_cell is not None:
             plt.legend(loc='upper right')
         plt.axis('equal')
         plt.axis('off')
-        plt.savefig(os.path.join(self.output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
+        plt.savefig(os.path.join(output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
         #plt.show()
         plt.close()
 
@@ -349,5 +358,22 @@ class Plot():
         plt.xlabel('Index')
         plt.ylabel('Shape Similarity')
         plt.savefig(os.path.join(self.output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
+        #plt.show()
+        plt.close()
+
+    def plot_distribution_of_overlap_number(self, same_cells, session):
+        overlapping_cells = [len(cells) for cells in same_cells.values()]
+
+        bin_edges = range(1, max(overlapping_cells) + 2)
+        bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(len(bin_edges) - 1)]
+
+        plt.figure()
+        plt.hist(overlapping_cells, bins=bin_edges, color='blue', alpha=0.7)
+        plt.title('Distribution of Overlapping Cells for session ' + str(session))
+        plt.xlabel('Number of Overlapping Cells')
+        plt.ylabel('Frequency')
+
+        plt.xticks(ticks=bin_centers, labels=range(1, len(bin_centers) + 1))
+        plt.savefig(os.path.join(self.output_dir, 'overlap_distribution.png'), bbox_inches='tight', pad_inches=0)
         #plt.show()
         plt.close()

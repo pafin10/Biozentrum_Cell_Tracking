@@ -193,6 +193,8 @@ def extract_contours(session_cell_pixels):
     for contour in session_cells_contours:
         contour = contour[0]
         unpacked_contour = [[int(coord[1]), int(coord[0])] for coord in contour]
+        # avoid duplicate pixels for potentially more accurate calculation of warping path
+        unpacked_contour = list(dict.fromkeys(map(tuple, unpacked_contour)))
         unpacked_contours.append(unpacked_contour)
     return unpacked_contours
 
