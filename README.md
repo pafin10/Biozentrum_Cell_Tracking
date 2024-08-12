@@ -7,5 +7,6 @@ Overlap is simply defined as the [Jaccard index](https://en.wikipedia.org/wiki/J
 corresponding session cell within a certain distance. The set of all pixels for each cell are the elements of the sets.
 2. Quantification measures for scoring the similarity of cell shapes after aligning their centers. 
 For this, I use [dynamic time warping](https://en.wikipedia.org/wiki/Dynamic_time_warping).
+3. The overlap after aligining the centers to account for cases with few matches and to include additional shape information. Partly, this also acts as a control for cases where DTW distances are close and the most similar match in terms of shape is ambiguous. 
 
 A weighted combination of these factors gives a score, indicating the likelihood of cell X from session Z to be the same cell as cell Y from the global mask. The score values have no meaning independently but just as a relative measure.

@@ -66,20 +66,21 @@ if __name__ == '__main__':
         global_cells[i] = (y_pix_filled_cell, x_pix_filled_cell)
 
 
-    for j in range(len(statsfiles)):
-        if j == 0:
+    for current_session in range(len(statsfiles)):
+        if current_session == 0:
             continue
         start_time = time.time() 
-        print("Session", j)
+        print("Session", current_session)
+        
         same_cells = defaultdict(list)
-        n = len(statsfiles[j])
-        statsfile = statsfiles[j]
-        session_cells = [(statsfile[i], i) for i in range(n) if cellfiles[j][i][0]]
+        n = len(statsfiles[current_session])
+        statsfile = statsfiles[current_session]
+        session_cells = [(statsfile[i], i) for i in range(n) if cellfiles[current_session][i][0]]
         data = [cell[0] for cell in session_cells]
         y_pixels = [cell['ypix'] for cell in data]
         x_pixels = [cell['xpix'] for cell in data]
         all_pixels = [[(y, x) for x, y in zip(x_pix, y_pix)] for x_pix, y_pix in zip(x_pixels, y_pixels)]
-        # calculate session centroids, more accurate than med
+        # calculate session centroids, more accurate than med, important for metrics
         session_centroids = compute_centroids(all_pixels)
 
         for k in range(len(session_cells)): 
@@ -99,7 +100,8 @@ if __name__ == '__main__':
                 same_cells[k] = overlap_tuples
 
         same_cells = dict(sorted(same_cells.items(), key=lambda item: item[0]))
-    
+
+
         print("There are", len(same_cells), "cells with overlap > {}".format(overlap_threshold))
         for cell, corresponding_cell in same_cells.items():
             if len(corresponding_cell) > 0:
@@ -111,7 +113,8 @@ if __name__ == '__main__':
             key: (list(value[0]), list(value[1]))
             for key, value in session_cells_pixels.items()
         }
-        
+        # plot all cells with overlap and their overlap distribution
+        P.plot_distribution_of_overlap_number(same_cells, session=current_session)
         P.plot_cells_with_overlap(same_cells, flattened_session_cells, global_cells)
 
         # Plot the overlap distribution for each overlapping cell 
@@ -137,13 +140,20 @@ if __name__ == '__main__':
         
         # center alignment, coordinate transformation and storage of resepctive indices works correctly
         cells_w_aligned_centers = shapes.align_centers(gm_centroids, session_centroids)
-        P.plot_cells_w_aligned_centers(cells_w_aligned_centers, "aligned_centers_0_", session_cell_idx=0)
 
+        # plot example cells
+        """
+        for m in range(len(session_cells)):
+            P.plot_cells_w_aligned_centers(cells_w_aligned_centers, title="Aligned centers session {} cell {}".
+                                           format(sessions[current_session], m), session_cell=m, session=sessions[current_session])
+        P.plot_cells_w_aligned_centers(cells_w_aligned_centers, "Aligned centers for session {}".format(sessions[current_session]))
+        """
+        
 
-        # compute dtw distance between session and global mask cells
+        # Compute dtw distance between session and global mask cells
         # DTW is not capable of considering modular wrapping over the borders of arrays and it maintains monotonicity 
-        # As centered cell coordinates do not have the same starting points and also vary in length, we iterate through permutations of the coordinate array to 
-        # find the arrangement that minimizes the dtw distance
+        # As centered cell coordinates do not have the same starting points and also vary in length, we iterate through permutations of 
+        # the coordinate array to find the arrangement that minimizes the dtw distance
         dtw_distances = defaultdict(list)
         dtw_distances_list = []
         for cell_pair in cells_w_aligned_centers:
@@ -151,20 +161,14 @@ if __name__ == '__main__':
             global_cell = cell_pair[1][0]
             session_cell_coord = cell_pair[0][1]
             global_cell_coord = cell_pair[1][1]
+
             perms = generate_cyclic_permutations(session_cell_coord)
             dtw_distance = float('inf')
-            perm_index, cnt = 0, 0
-            last = -1
             for perm in perms:  
                 dtw_distance = min(shapes.DTW(perm, global_cell_coord).dtw_dist, dtw_distance)
-                if dtw_distance != last:
-                    perm_index = cnt
-                last = dtw_distance
-                cnt += 1
             dtw_distances[session_cell].append((dtw_distance, global_cell))
             dtw_distances_list.append(dtw_distance)
         
-
 
         # Normalize DTW distances per session cell
         for session_cell in dtw_distances.keys():
@@ -188,6 +192,7 @@ if __name__ == '__main__':
                 gm_cell_ypixel.append(filled_cells[gm_cell_index][1])
 
             g = session_cell
+            # find the index of the session cell in the list of cells with aligned centers
             while session_cell != cells_w_aligned_centers[g][0][0]:
                 g += 1
         
@@ -201,14 +206,13 @@ if __name__ == '__main__':
                 g += 1
 
             dtw_distances[session_cell] = (normalized_z_scores, centered_overlap_scores)
-        # FOR session cell 0: centered overlaps seem right, issue elsewhere with score 
 
         # check skew and normalize DTW distances
-        # values for skew and percentiles are quite arbitrary so check for more theoretical foundations
-        P.plot_distribution(dtw_distances_list, "DTW_distance_distribution")
+        P.plot_distribution(dtw_distances_list, "Distribution of DTW distances")
         skewness = skew(dtw_distances_list)
         if abs(skewness) > 1:
             print("The distribution of DTW distances is quite skewed.")
+        print("The skewness of the distribution of DTW distances is", skewness)
 
         # update the normalized distances
         # remember, session cell coordinates are centered, so differ for same index while global mask cell coordinates are the same
@@ -238,6 +242,7 @@ if __name__ == '__main__':
         """
 
         # This plotting is very slow, if not needed, comment out
+        # Not working anymore with current dtw implementation, need to update
         """for k in range(len(centered_cells_by_session)):
             for i in range(len(centered_cells_by_session[k])):
                 dtw = shapes.DTW(centered_cells_by_session[k][i][1], centered_cells_by_session[k][i][2])
@@ -252,14 +257,14 @@ if __name__ == '__main__':
                     for i in range(len(shape_cell_data)):
                         found = False
                         for m in range(len(overlap_cell_data)):
-                            # i.e. it is the same gobal mask cell, so we exclude those that dont pass the overlap threshold
+                            # i.e. it is the same gobal mask cell
                             if overlap_cell_data[m][1] == shape_cell_data[i][0]:
                                 dtw_distance = shape_cell_data[i][3]
                                 centered_overlap_score = shape_cell_data[i][4]
                                 updated_tuple = list(overlap_cell_data[m]) + [dtw_distance] + [centered_overlap_score]
                                 overlap_cell_data[m] = tuple(updated_tuple)
                                 found = True
-                        if not found:
+                        if not found: # if no overlap but still inside the chosen radius, add the cell to the list
                             gm_cell_index, dtw_distance, centered_overlap_score = shape_cell_data[i][0], shape_cell_data[i][3], shape_cell_data[i][4]
                             overlap_cell_data.append((0, gm_cell_index, dtw_distance, centered_overlap_score))
 
@@ -282,8 +287,10 @@ if __name__ == '__main__':
             overlap_cell_data.sort(key=lambda x: x[-1], reverse=True)
             
             if len(overlap_cell_data) > 0 and isinstance(overlap_cell_data[0][-1], float):
-                print("The best alignment for cell", session_cell, "is with cell", overlap_cell_data[0][1], "from the global mask with alignment score", overlap_cell_data[0][-1])
+                print("The best alignment for cell", session_cell, "is with cell", overlap_cell_data[0][1], 
+                      "from the global mask with alignment score", overlap_cell_data[0][-1])
                 aligned_cells += 1
+        
         print("Out of {} session cells, {} cells were aligned.".format(len(session_cells), aligned_cells))
                 
 
@@ -291,8 +298,8 @@ if __name__ == '__main__':
         for session_cell, overlap_cell_data in same_cells.items():
             for overlap_cell in overlap_cell_data:
                 if len(overlap_cell) == 4:
-                    P.plot_mask("global_mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
-                                overlap_score=overlap_cell[0], session=sessions[j], alignment_score=overlap_cell[3])
+                    P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
+                                overlap_score=overlap_cell[0], session=sessions[current_session], alignment_score=overlap_cell[3])
                     
         print("One session takes", time.time() - start_time, "seconds to run")
 
