@@ -1,0 +1,58 @@
+# Python compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.env
+.env
+
+# Python distribution/packaging
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.pyre/
+.mypy_cache/
+.pytype/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VSCode settings
+.vscode/
+*.code-workspace
+
+# MacOS
+.DS_Store
+
+# Logs and temporary files
+*.log
+*.out
+*.tmp
+*.temp
+
+# Virtual environments
+venv/
+env/
+ENV/
+venv.bak/
+
+# matlab
+*.mat
+
+# CellReg Output
+cell_reg/
