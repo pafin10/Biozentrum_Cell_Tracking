@@ -132,7 +132,7 @@ if __name__ == '__main__':
         """
         
         # Align the centers of the cells from the session with the global mask
-        global_mask_list_struct = convert_global_mask_to_list_structure(np_global_mask)
+        global_mask_list_struct = convert_global_mask_to_list_structure(np_global_mask) # this is the structure I want for the cell reg gm too
         session_cells_all_pixels_list_struct = [[[x, y] for x, y in zip(cell[0], cell[1])] for cell in flattened_session_cells.values()]
         session_cells_contours_list_struct = extract_contours(session_cells_all_pixels_list_struct)
 
