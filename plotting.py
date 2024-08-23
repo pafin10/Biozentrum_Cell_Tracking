@@ -81,7 +81,7 @@ class Plot():
 
         # Plot contours
         for contour in contours:
-            plt.plot(contour[:, 1], contour[:, 0], 'b', linewidth=2)  # Line plot for contours
+            plt.plot(contour[:, 1], contour[:, 0], 'c', linewidth=2)  # Line plot for contours
 
 
         # Plot pixel contours of global mask with interpolation
@@ -95,9 +95,9 @@ class Plot():
             x_smooth = interp_func_x(t_new)
             y_smooth = interp_func_y(t_new)
             
-            plt.plot(y_smooth, x_smooth, 'b')  
+            plt.plot(y_smooth, x_smooth, 'm')  
         else:
-            plt.plot(gm_cells_y_coord, gm_cells_x_coord, 'b')  
+            plt.plot(gm_cells_y_coord, gm_cells_x_coord, 'm')  
 
         plt.title(f'{title} Cell {idx} vs Session Cell {session_cell}')
         
@@ -106,7 +106,7 @@ class Plot():
         if alignment_score is not None:
             plt.title(f'{title} Cell {idx} vs session cell {session_cell} with match score: {alignment_score:.2f}')
         if overlap_score is not None and alignment_score is not None:
-            plt.title(f'{title} Cell {idx} vs session cell {session_cell} with overlap: {overlap_score:.2f} and match score: {alignment_score:.2f}')
+            plt.title(f'{title} Cell {idx} vs session cell {session_cell} with match score: {alignment_score:.2f}')
         
         # Ensure output directory exists
         output_dir = os.path.join(output_dir, 'Session_Cell_' + str(session_cell))
@@ -185,7 +185,7 @@ class Plot():
         plt.axis('off')
         #plt.show()
 
-    def plot_cells_with_overlap(self, overlap_mapping, original_cells, global_cells):
+    def plot_cells_with_overlap(self, overlap_mapping, original_cells, filled_global_cells):
         plt.figure(figsize=(10, 10))
 
         # Define colors for original cells, global cells, and overlaps
@@ -198,7 +198,7 @@ class Plot():
             plt.scatter(xpix, ypix, color=original_color, s=1, label=f"{cell_key} (Original)")
         
         # Plot global cells
-        for cell_key, (ypix, xpix) in global_cells.items():
+        for cell_key, (ypix, xpix) in enumerate(filled_global_cells):
             plt.scatter(xpix, ypix, color=global_color, s=1, label=f"{cell_key} (Global)")
 
         # Plot overlaps
@@ -206,7 +206,7 @@ class Plot():
             original_ypix, original_xpix = original_cells[original_key]
 
             for overlap_ratio, global_key in overlaps:
-                global_ypix, global_xpix = global_cells[global_key]
+                global_ypix, global_xpix = filled_global_cells[global_key]
 
                 original_set = set(zip(original_ypix, original_xpix))
                 global_set = set(zip(global_ypix, global_xpix))
@@ -228,6 +228,7 @@ class Plot():
         plt.title('Cells with Overlaps')
         plt.xlabel('X Coordinate')
         plt.ylabel('Y Coordinate')
+        plt.savefig(os.path.join(self.output_dir, 'cells_with_overlaps.png'), bbox_inches='tight', pad_inches=0)
         #plt.show()
         plt.close()
 
@@ -277,13 +278,14 @@ class Plot():
             output_dir = self.output_dir
 
         for (i, centered_session_cell_contour), (j, global_mask_cell_contour) in cells_aligned_centers:
+            
             if session_cell is not None and i != session_cell:
                 continue
             
             if session_cell is not None and i == session_cell:
                 color = colors[j % len(colors)]  # Cycle through the colors
             else:
-                color = 'r'
+                color = 'm'
 
             y_coords_session_cell = [y for x, y in centered_session_cell_contour]
             x_coords_session_cell = [x for x, y in centered_session_cell_contour]
@@ -297,11 +299,12 @@ class Plot():
 
             for contour in session_contours:
                 if f"Session Cell {i}" not in legend_entries:
-                    plt.plot(contour[:, 1], contour[:, 0], 'b', linewidth=2, label=f"Session Cell {i}")
+                    plt.plot(contour[:, 1], contour[:, 0], 'c', linewidth=2, label=f"Session Cell {i}")
                     legend_entries.add(f"Session Cell {i}")
                 else:
-                    plt.plot(contour[:, 1], contour[:, 0], 'b', linewidth=2)
-
+                    plt.plot(contour[:, 1], contour[:, 0], 'c', linewidth=2)
+            
+            
             y_coords_global_mask = [y for y, x in global_mask_cell_contour]
             x_coords_global_mask = [x for y, x in global_mask_cell_contour]
 
@@ -331,26 +334,23 @@ class Plot():
         plt.show()
         plt.close()
     
-    def plot_dtw_results(self, dtw, title=None, plot_type="alignment"):
-        # Compute DTW alignment
-        dtw.computeDTW()
+    def plot_dtw_alignment(self, session_cell_coord, global_cell_coord, dtw_path):
+        plt.figure(figsize=(10, 5))
         
-        # Create a new figure
-        fig = plt.figure()
-        
-        # Plot the alignment
-        dtw.plot(type=plot_type)  
-        os.makedirs(os.path.join(self.output_dir, "dynamic_time_warping"), exist_ok=True)
-        os.chdir(os.path.join(self.output_dir, "dynamic_time_warping"))
-        output_dir = os.getcwd()
-        
-        plt.savefig(os.path.join(output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
-        #plt.show()
-
-        # Close the plot to free up memory
-        plt.close(fig)
-        plt.close('all')
+        session_cell_coord = np.array(session_cell_coord)
+        global_cell_coord = np.array(global_cell_coord)
     
+        for (i, j) in dtw_path:
+            plt.plot([session_cell_coord[i][0], global_cell_coord[j][0]], 
+                    [session_cell_coord[i][1], global_cell_coord[j][1]], 'r-')
+        
+        plt.plot(session_cell_coord[:, 0], session_cell_coord[:, 1], 'bo-', label='Session Cell')
+        plt.plot(global_cell_coord[:, 0], global_cell_coord[:, 1], 'go-', label='Global Cell')
+        
+        plt.legend()
+        plt.title('DTW Alignment')
+        plt.show()
+        
     def plot_distribution(self, array, title=None):
         plt.figure()
         plt.boxplot(array)
@@ -377,3 +377,10 @@ class Plot():
         plt.savefig(os.path.join(self.output_dir, 'overlap_distribution.png'), bbox_inches='tight', pad_inches=0)
         #plt.show()
         plt.close()
+
+    def plot_downsampled_sequences(self, seq1, seq2):
+        plt.figure()
+        plt.plot(seq1[:, 0], seq1[:, 1], 'bo-', label='Downsampled Seq 1')
+        plt.plot(seq2[:, 0], seq2[:, 1], 'go-', label='Downsampled Seq 2')
+        plt.legend()
+        plt.show()

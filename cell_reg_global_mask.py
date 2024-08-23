@@ -4,36 +4,35 @@ import h5py
 from collections import defaultdict
 import cv2
 
+"""
+This script serves to transform the CellReg output into a global mask that can be used to align the cells across sessions.
+Objects of this class can be created in the evaluation script to generate the global mask.
+The global mask is a list of contours, where each contour represents a cell's average footprint across all sessions.
+All the methods used for the global mask from the other tested tool can then be applied to this one too. 
+"""
+
 class CellRegGlobalMask:
     def __init__(self, matfile):
         self.load_mat(matfile)
-        self.footprints = self.convert_to_footprints(self.binary_footprints)
+        self.convert_to_footprints(self.binary_footprints)
         self.average_footprints()
         self.get_avg_cell_contours()
         self.reformat()
     
     def load_mat(self, matfile):
         with h5py.File(matfile, 'r') as f:
-            print("keys: %s" % f.keys())
             struct = f['cell_registered_struct']
-            self.centroids = struct['registered_cells_centroids'][:]
+            self.centroids = struct['registered_cells_centroids'][:][0]
             self.mapping = struct['cell_to_index_map'][:]
             self.binary_footprints = struct['spatial_footprints_corrected'][:][0]
             self.n_sessions = len(self.binary_footprints)
 
             mapping = defaultdict(list)
-            l = len(self.mapping[0])
             for i in range(self.n_sessions):
                 if i > 0:
                     if self.mapping[0][i] > 0:
                         for j in range(len(self.mapping[i])):
                             mapping[j].append(int(self.mapping[i][j]) - 1) # -1 to make it 0-indexed, -1 now means no cell found
-                    """else:
-                    cnt = 0
-                    if i > 0:
-                        for j in range(len(self.mapping[i])):
-                            mapping[l + cnt].append(-1)
-                            cnt += 1"""
 
                 if isinstance(self.binary_footprints[i], h5py.Reference):
                     target = struct[self.binary_footprints[i]]
@@ -46,7 +45,7 @@ class CellRegGlobalMask:
         footprints = []
         for i in range(len(binary_footprints)):
             footprints.append([np.where(cell) for cell in binary_footprints[i]])
-        return footprints
+        self.footprints = footprints
     
 
     def average_footprints(self):
@@ -113,9 +112,13 @@ class CellRegGlobalMask:
         new_global_mask = []
         for cell in self.global_mask:
             # Flatten the cell structure
-            flattened_cell = [list(point) for point in cell[0]]
-            new_global_mask.append(flattened_cell)
-        
+            cell = cell[0]
+            tmp = []
+            for i in range(len(cell)): 
+                point = cell[i]
+                point = [point[0][0], point[0][1]]
+                tmp.append(point)
+            new_global_mask.append(tmp)
         self.global_mask = new_global_mask
 
 

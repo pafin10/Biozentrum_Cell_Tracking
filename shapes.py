@@ -45,7 +45,7 @@ class Shapes():
             self.computeDTW()
         
         def computeDTW(self):
-            self.dtw_path, dtw_dist = dtw_path(self.cell1, self.cell2)
+            self.dtw_path, dtw_dist = dtw_path(self.cell1, self.cell2, global_constraint='sakoe_chiba', sakoe_chiba_radius=3)
             self.dtw_dist = dtw_dist / len(self.dtw_path)
             self.soft_dtw_dist = soft_dtw(self.cell1, self.cell2, gamma=0.1)
         

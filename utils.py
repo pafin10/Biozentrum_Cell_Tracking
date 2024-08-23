@@ -159,7 +159,7 @@ def convert_global_mask_to_list_structure(global_mask):
 def compute_cell_alignment_score(overlap, dtw_distance, centered_overlap_score, weights=[0.2, 0.3, 0.5], using_dtw=True, n_cells=None):
     if using_dtw:
         dtw_distance = 1 - dtw_distance # we want higher scores to be better
-    
+        dtw_distance *= 0.5 # scale to 0-0.5 range to avoid overshadowing overlap score
     if n_cells is not None:
         if n_cells == 2 and not using_dtw:
             return overlap * 0.3 + centered_overlap_score * 0.7
@@ -167,7 +167,7 @@ def compute_cell_alignment_score(overlap, dtw_distance, centered_overlap_score, 
             if not using_dtw:
                 return overlap * 0.2 + centered_overlap_score * 0.8
             else: 
-                weights = [0.2, 0.4, 0.4]
+                weights = [0.1, 0.3, 0.6]
         else:
             weights = [0.2, 0.3, 0.5]
     
@@ -230,9 +230,20 @@ def fill_cells(contours, image_shape):
     return x_pixels, y_pixels
 
 def generate_cyclic_permutations(arr):
+    """
+    Generate all cyclic permutations of a given array.
+
+    :param arr: A 2D numpy array representing coordinate pairs.
+    :return: A list of cyclic permutations of the array.
+    """
+    if len(arr) == 0:
+        return []
+
     permutations = []
+    arr = np.array(arr)  # Ensure it's a numpy array
+
     for i in range(len(arr)):
-        perm = arr[i:] + arr[:i]
+        perm = np.concatenate((arr[i:], arr[:i]), axis=0)
         permutations.append(perm)
-    
+
     return permutations
