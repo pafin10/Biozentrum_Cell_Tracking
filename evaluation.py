@@ -10,6 +10,9 @@ from scipy.stats import skew
 import time
 from cell_reg_global_mask import CellRegGlobalMask
 from scipy.interpolate import interp1d
+import tkinter as tk
+from PIL import Image, ImageTk
+from GUI import QuestionPrompt, ManualCorrection
 
 # Constants
 distance_threshold = 40
@@ -17,6 +20,7 @@ sample_size = 0.4
 image_shape = (512, 512)
 overlap_threshold = 0.01
 n_cells_dtw_threshold = 2 # minimum number of cells to use DTW, else the centered overlap is used instead
+manual_threshold = None
 
 
 def print_overlap_info(same_cells, overlap_threshold):
@@ -256,6 +260,37 @@ def map_best_cell_pairs(same_cells, cells_w_aligned_centers, matched_cells):
                         matched_cells.append(cell_pair)
                         break
 
+def GUI(session_cell, overlap_cells): 
+    paths = []
+    for overlap_cell in overlap_cells:  
+        P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
+                                overlap_score=overlap_cell[0], session=sessions[current_session], alignment_score=overlap_cell[-1])
+        paths.append(P.cell_pair_path)
+    
+    root = tk.Tk()
+    root.title("Cell Alignment")
+
+    photos = []
+    for path in paths:
+        image = Image.open(path)
+        photo = ImageTk.PhotoImage(image)
+        photos.append(photo)
+
+        label = tk.Label(root, image=photo)
+        label.pack()
+        root.geometry("200x200")
+    
+    root.mainloop()
+
+def start_widget():
+    prompt = QuestionPrompt()
+    if prompt.get_result() == "Yes":
+        manual_threshold = prompt.threshold
+    else:
+        manual_threshold = None
+    return manual_threshold
+   
+   
 
 if __name__ == '__main__':
     """"
@@ -331,14 +366,22 @@ if __name__ == '__main__':
         x_pix_filled_cell = [int(round(p[1])) for p in cell]
         gm_cells_footprints[i] = (y_pix_filled_cell, x_pix_filled_cell)
 
-    cell_mappings = []
 
+
+    cell_mappings = []
+    manual_threshold = start_widget()
+    if manual_threshold:
+        print("The manual threshold for close cases has been set to", manual_threshold)
+    else:
+        print("No manual threshold has been set for close cases.")
 
 
     ############################### Cell Alignment ########################################
     for current_session in range(len(statsfiles)):
         if current_session == 0:
             continue
+
+
         start_time = time.time() 
         print("Session", current_session)
         
@@ -434,13 +477,23 @@ if __name__ == '__main__':
         
         P.plot_cells_w_aligned_centers(matched_cells, "Best alignment for session {}".format(sessions[current_session]))
 
-        # now check visually by plotting if alignment score seems to correctly align cells        
+        # now check visually by plotting if alignment score seems to correctly align cells 
+        last = 0    
+        overlap_cells = []   
         for session_cell, overlap_cell_data in same_cells.items():
             for overlap_cell in overlap_cell_data:
                 if len(overlap_cell) == 5:
-                    P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
+                    if manual_threshold: 
+                        if session_cell != last:
+                            GUI(last, overlap_cells)
+                            overlap_cells = [overlap_cell]
+                        else:
+                            overlap_cells.append(overlap_cell)
+                        last = session_cell
+                    else:
+                        P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
                                 overlap_score=overlap_cell[0], session=sessions[current_session], alignment_score=overlap_cell[-1])
-
+                   
         cell_mappings.append(same_cells)            
         print("One session takes", time.time() - start_time, "seconds to run")
 

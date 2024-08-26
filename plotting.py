@@ -62,6 +62,7 @@ class Plot():
             file_path = os.path.join(output_dir, f'{title}.png')
 
         plt.savefig(file_path, bbox_inches='tight', pad_inches=0)
+        self.cell_pair_path = file_path
         #plt.show()
         plt.close()
 
