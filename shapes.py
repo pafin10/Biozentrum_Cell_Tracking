@@ -2,9 +2,7 @@ import hausdorff
 import numpy as np
 import os
 from utils import *
-from frechetdist import frdist
-from tslearn.metrics import dtw, dtw_path, soft_dtw
-from shapedtw.shapedtw import shape_dtw
+from tslearn.metrics import dtw, dtw_path, soft_dtw, dtw_path_from_metric
 from typing import List
 
 
@@ -36,21 +34,30 @@ class Shapes():
         return cells_aligned_centers
     
     class DTW():
-        def __init__(self, cell1, cell2):
+        def __init__(self, cell1, cell2, threshold=5):
             self.cell1 = cell1
             self.cell2 = cell2
             self.dtw_path = None
             self.dtw_dist = None
             self.soft_dtw_dist = None
+            self.threshold = threshold
             self.computeDTW()
         
         def computeDTW(self):
-            self.dtw_path, dtw_dist = dtw_path(self.cell1, self.cell2, global_constraint='sakoe_chiba', sakoe_chiba_radius=3)
+            
+            self.dtw_path, dtw_dist = dtw_path(self.cell1, self.cell2, global_constraint='sakoe_chiba', sakoe_chiba_radius=2)
             self.dtw_dist = dtw_dist / len(self.dtw_path)
             self.soft_dtw_dist = soft_dtw(self.cell1, self.cell2, gamma=0.1)
-        
-        def plot(self, type="alignment"):
-            self.dtw.plot(type=type)
+
+        # did not help to find extreme shapes and takes 4 times longer
+        def quadratic_penalty_distance(self, A, B):
+            distance = euclidean_distance(A, B)
+            if distance > self.threshold:
+                # Apply a quadratic penalty for distances greater than the threshold
+                return (distance ** 2)
+            else:
+                # Normal distance for distances within the threshold
+                return distance
 
 
     

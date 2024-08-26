@@ -161,18 +161,23 @@ def compute_cell_alignment_score(overlap, dtw_distance, centered_overlap_score, 
         dtw_distance = 1 - dtw_distance # we want higher scores to be better
         dtw_distance *= 0.5 # scale to 0-0.5 range to avoid overshadowing overlap score
     if n_cells is not None:
-        if n_cells == 2 and not using_dtw:
-            return overlap * 0.3 + centered_overlap_score * 0.7
+        if n_cells == 2:
+            if not using_dtw:
+                return overlap * 0.3 + centered_overlap_score * 0.7
+            else:
+                return overlap * 0.2 + dtw_distance * 0.3 + centered_overlap_score * 0.5
         elif n_cells == 3:
             if not using_dtw:
                 return overlap * 0.2 + centered_overlap_score * 0.8
             else: 
-                weights = [0.1, 0.3, 0.6]
+                weights = [0.05, 0.2, 0.75]
         else:
-            weights = [0.2, 0.3, 0.5]
+            weights = [0.1, 0.4, 0.5]
     
     if using_dtw:
         return overlap * weights[0] + dtw_distance * weights[1] + centered_overlap_score * weights[2]
+    return dtw_distance 
+    
 
 def extract_contours(session_cell_pixels):
     session_cells_contours = []

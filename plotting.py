@@ -334,22 +334,30 @@ class Plot():
         plt.show()
         plt.close()
     
-    def plot_dtw_alignment(self, session_cell_coord, global_cell_coord, dtw_path):
+    def plot_dtw_alignment(self, session_cell_coord, global_cell_coord, dtw_path, session_cell_idx, global_cell_idx):
         plt.figure(figsize=(10, 5))
         
         session_cell_coord = np.array(session_cell_coord)
         global_cell_coord = np.array(global_cell_coord)
-    
+        output_dir = os.path.join(self.output_dir, 'DTW_Alignment')
+        os.makedirs(output_dir, exist_ok=True)
+        output_dir = os.path.join(output_dir, 'Session_Cell_' + str(session_cell_idx))
+        os.makedirs(output_dir, exist_ok=True)
+        
+
         for (i, j) in dtw_path:
             plt.plot([session_cell_coord[i][0], global_cell_coord[j][0]], 
                     [session_cell_coord[i][1], global_cell_coord[j][1]], 'r-')
         
-        plt.plot(session_cell_coord[:, 0], session_cell_coord[:, 1], 'bo-', label='Session Cell')
-        plt.plot(global_cell_coord[:, 0], global_cell_coord[:, 1], 'go-', label='Global Cell')
+        plt.plot(session_cell_coord[:, 0], session_cell_coord[:, 1], 'bo-', label='Session Cell {}'.format(session_cell_idx))
+        plt.plot(global_cell_coord[:, 0], global_cell_coord[:, 1], 'go-', label='Global Cell {}'.format(global_cell_idx))
         
         plt.legend()
+        title = 'DTW Alignment Session Cell {} with GM cell {}'.format(session_cell_idx, global_cell_idx)
         plt.title('DTW Alignment')
-        plt.show()
+        plt.savefig(os.path.join(output_dir, f"{title}.png"), bbox_inches='tight', pad_inches=0)
+        #plt.show()
+        plt.close()
         
     def plot_distribution(self, array, title=None):
         plt.figure()

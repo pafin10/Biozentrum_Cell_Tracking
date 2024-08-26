@@ -16,7 +16,7 @@ distance_threshold = 40
 sample_size = 0.4
 image_shape = (512, 512)
 overlap_threshold = 0.01
-n_cells_dtw_threshold = 3 # minimum number of cells to use DTW, else the centered overlap is used instead
+n_cells_dtw_threshold = 2 # minimum number of cells to use DTW, else the centered overlap is used instead
 
 
 def print_overlap_info(same_cells, overlap_threshold):
@@ -83,18 +83,15 @@ def downsample_sequence(seq, target_length):
     return downsampled_seq
 
 def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_list):
-    # CONTINUE HERE !!!
     for cell_pair in cells_w_aligned_centers:
         session_cell = cell_pair[0][0]
         global_cell = cell_pair[1][0]
         session_cell_coord = cell_pair[0][1]
         global_cell_coord = cell_pair[1][1]
          
-
-        # Determine the lengths of both sequences
         len_session = len(session_cell_coord)
         len_global = len(global_cell_coord)
-
+        
         if len_session > len_global:
             # Downsample session_cell_coord to the length of global_cell_coord
             session_cell_coord_downsampled = downsample_sequence(session_cell_coord, len_global)
@@ -105,12 +102,17 @@ def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_
             global_cell_coord_downsampled = downsample_sequence(global_cell_coord, len_session)
             sequence = session_cell_coord
             # No downsampling needed for session_cell_coord
+            
 
         # Compute DTW distance and path
         dtw_distance = np.inf
         dtw_path = None
 
+        # just to test if better wo downsampling
+        #sequence = session_cell_coord
+        #global_cell_coord_downsampled = global_cell_coord
         # Find the closest point in the global cell to the starting point of the session cell to force starting point
+
         start = sequence[0]
         min_dist = np.inf
         point_index = None
@@ -120,11 +122,16 @@ def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_
                 min_dist = dist
                 point_index = i  
 
-        if point_index is not None:
-            np.delete(global_cell_coord_downsampled, point_index, 0)
+        # transformations to fix starting points and create sensible dtw alignment
+        global_cell_coord_downsampled = np.concatenate(
+            (global_cell_coord_downsampled[point_index+1 : ], global_cell_coord_downsampled[:point_index])
+            )
+        global_cell_coord_downsampled = np.delete(global_cell_coord_downsampled, 0, axis=0)
+        global_cell_coord_downsampled = global_cell_coord_downsampled[::-1]
 
-        # lengths must match, for now quick fix by removing the middle point
+        # lengths must match, for now quick fix by removing the middle points
         mid = len(sequence) // 2
+        np.delete(sequence, mid, 0)
         np.delete(sequence, mid, 0)
 
         permutations = generate_cyclic_permutations(sequence)
@@ -135,8 +142,7 @@ def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_
                 dtw_path = dtw_instance.dtw_path
         
         dtw_distances[session_cell].append((dtw_distance, global_cell))
-        if session_cell == 7:
-            P.plot_dtw_alignment(sequence, global_cell_coord_downsampled, dtw_path)
+        P.plot_dtw_alignment(sequence, global_cell_coord_downsampled, dtw_path, session_cell_idx=session_cell, global_cell_idx=global_cell)
         dtw_distances_list.append(dtw_distance)
 
 def normalize_dtw_distances(cells_w_aligned_centers, gm_cells_footprints, dtw_distances):
@@ -214,6 +220,42 @@ def store_cell_pairs_with_all_scores(centered_cells_by_session, same_cells):
                     if not found: # if no overlap but still inside the chosen radius, add the cell to the list
                         gm_cell_index, dtw_distance, centered_overlap_score = shape_cell_data[i][0], shape_cell_data[i][3], shape_cell_data[i][4]
                         overlap_cell_data.append((0, gm_cell_index, dtw_distance, centered_overlap_score))
+     
+def compute_weighted_alignment_scores(same_cells, n_cells_dtw_threshold, aligned_cells):
+    for session_cell, overlap_cell_data in same_cells.items():
+            using_dtw = True
+            n_cells = len(overlap_cell_data)
+            if n_cells < n_cells_dtw_threshold:
+                using_dtw = False
+            for i in range(n_cells):
+                overlap_cell = overlap_cell_data[i]
+                if len(overlap_cell) == 4:
+                    overlap = overlap_cell[0]
+                    dtw = overlap_cell[2]
+                    centered_overlap_score = overlap_cell[3]
+                    alignment_score = compute_cell_alignment_score(overlap=overlap, dtw_distance=dtw, centered_overlap_score=centered_overlap_score, 
+                                                                   n_cells=n_cells, using_dtw=using_dtw)
+                    overlap_cell = overlap_cell + (alignment_score,)
+                    overlap_cell_data[i] = overlap_cell  # Update the tuple in the list
+            overlap_cell_data.sort(key=lambda x: x[-1], reverse=True)
+            
+            if len(overlap_cell_data) > 0 and isinstance(overlap_cell_data[0][-1], float):
+                print("The best alignment for cell", session_cell, "is with cell", overlap_cell_data[0][1], 
+                      "from the global mask with match score", overlap_cell_data[0][-1])
+                aligned_cells += 1
+
+def map_best_cell_pairs(same_cells, cells_w_aligned_centers, matched_cells):
+    for cell_pair in cells_w_aligned_centers:
+            gm_index = cell_pair[1][0]
+            for session_cell, overlap_cell_data in same_cells.items():
+                while len(overlap_cell_data) > 0 and len(overlap_cell_data[0]) < 4:
+                    overlap_cell_data.pop(0)
+                if len(overlap_cell_data) > 0:
+                    overlap_cell = overlap_cell_data[0]
+                    if overlap_cell[1] == gm_index and cell_pair[0][0] == session_cell:
+                        matched_cells.append(cell_pair)
+                        break
+
 
 if __name__ == '__main__':
     """"
@@ -290,6 +332,8 @@ if __name__ == '__main__':
         gm_cells_footprints[i] = (y_pix_filled_cell, x_pix_filled_cell)
 
     cell_mappings = []
+
+
 
     ############################### Cell Alignment ########################################
     for current_session in range(len(statsfiles)):
@@ -377,47 +421,19 @@ if __name__ == '__main__':
 
         # store overlap and dtw distance in one data structure with cell indices
         store_cell_pairs_with_all_scores(centered_cells_by_session, same_cells)
-       
+        
         # calculate weighted alignment score
         aligned_cells = 0
-        for session_cell, overlap_cell_data in same_cells.items():
-            using_dtw = True
-            n_cells = len(overlap_cell_data)
-            if n_cells < n_cells_dtw_threshold:
-                using_dtw = False
-            for i in range(n_cells):
-                overlap_cell = overlap_cell_data[i]
-                if len(overlap_cell) == 4:
-                    overlap = overlap_cell[0]
-                    dtw = overlap_cell[2]
-                    centered_overlap_score = overlap_cell[3]
-                    alignment_score = compute_cell_alignment_score(overlap=overlap, dtw_distance=dtw, centered_overlap_score=centered_overlap_score, 
-                                                                   n_cells=n_cells, using_dtw=using_dtw)
-                    overlap_cell = overlap_cell + (alignment_score,)
-                    overlap_cell_data[i] = overlap_cell  # Update the tuple in the list
-            overlap_cell_data.sort(key=lambda x: x[-1], reverse=True)
-            
-            if len(overlap_cell_data) > 0 and isinstance(overlap_cell_data[0][-1], float):
-                print("The best alignment for cell", session_cell, "is with cell", overlap_cell_data[0][1], 
-                      "from the global mask with match score", overlap_cell_data[0][-1])
-                aligned_cells += 1
+        compute_weighted_alignment_scores(same_cells, n_cells_dtw_threshold, aligned_cells)
         
         print("Out of {} session cells, {} cells were aligned.".format(len(session_cells), aligned_cells))
                 
         # store max score global mask cells for each session cell with coordinates to plot whole field of view
         matched_cells = []
-        for cell_pair in cells_w_aligned_centers:
-            gm_index = cell_pair[1][0]
-            for session_cell, overlap_cell_data in same_cells.items():
-                while len(overlap_cell_data) > 0 and len(overlap_cell_data[0]) < 4:
-                    overlap_cell_data.pop(0)
-                if len(overlap_cell_data) > 0:
-                    overlap_cell = overlap_cell_data[0]
-                    if overlap_cell[1] == gm_index and cell_pair[0][0] == session_cell:
-                        matched_cells.append(cell_pair)
-                        break
+        map_best_cell_pairs(same_cells, cells_w_aligned_centers, matched_cells)
         
         P.plot_cells_w_aligned_centers(matched_cells, "Best alignment for session {}".format(sessions[current_session]))
+
         # now check visually by plotting if alignment score seems to correctly align cells        
         for session_cell, overlap_cell_data in same_cells.items():
             for overlap_cell in overlap_cell_data:
@@ -430,15 +446,3 @@ if __name__ == '__main__':
 
     # Structure of same_cells: {session_cell: [(overlap, global_cell_idx), ..., match_score]}   
     # Candidates: Global Mask cell 64, global mask cell 5, global mask cell 3, global mask cell 13
-
-    """
-    gm_candidates = [64, 5, 3, 13]
-    for same_cells in cell_mappings: 
-        for overlap_cell in same_cells.values():
-            for data in overlap_cell:
-                if len(data) == 4:
-                    if data[1] in gm_candidates:
-                    print("Overlap score:", data[0], "DTW distance:", data[2], "Alignment score:", data[3])
-    """
-    
-    
