@@ -160,16 +160,17 @@ class Plot():
             plt.title(f'Image from {file_path}')
             plt.axis('off')  # Turn off axis numbers and ticks
             plt.show()
+            plt.close()
 
     def plot_binary_mask(self, title, output_dir):
-
         # Plot the binary mask
         plt.imshow(self.binary_mask, cmap='gray')
         plt.title(title)
         plt.axis('off') 
         output_file_path = os.path.join(output_dir, f"{title}.png")
         plt.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
-        plt.show()
+        #plt.show()
+        plt.close()
 
     def plot_filled_cells(self, mask, centroids=None):
         plt.figure(figsize=(8, 8))
@@ -332,7 +333,7 @@ class Plot():
         plt.axis('off') 
         #output_file_path = os.path.join(output_dir, f"{title}.png")
         #plt.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
-        plt.show()
+        #plt.show()
         plt.close()
     
     def plot_dtw_alignment(self, session_cell_coord, global_cell_coord, dtw_path, session_cell_idx, global_cell_idx):

@@ -247,6 +247,8 @@ def compute_weighted_alignment_scores(same_cells, n_cells_dtw_threshold, aligned
                 print("The best alignment for cell", session_cell, "is with cell", overlap_cell_data[0][1], 
                       "from the global mask with match score", overlap_cell_data[0][-1])
                 aligned_cells += 1
+    
+    return aligned_cells
 
 def map_best_cell_pairs(same_cells, cells_w_aligned_centers, matched_cells):
     for cell_pair in cells_w_aligned_centers:
@@ -260,7 +262,7 @@ def map_best_cell_pairs(same_cells, cells_w_aligned_centers, matched_cells):
                         matched_cells.append(cell_pair)
                         break
 
-def GUI(session_cell, overlap_cells): 
+def manual_correction_gui(session_cell, overlap_cell, cells_w_aligned_centers, matched_cells): 
     paths = []
     for overlap_cell in overlap_cells:  
         P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
@@ -270,15 +272,27 @@ def GUI(session_cell, overlap_cells):
     root = tk.Tk()
     root.title("Cell Alignment")
 
-    photos = []
-    for path in paths:
+    photos, labels = [], []
+    gridrow, gridcol = 0, 0
+
+    for i in range(len(paths)):
+        path = paths[i]
+        gm_cell_idx = overlap_cells[i][1]
         image = Image.open(path)
+        curr_size = image.size
+        new_size_h = curr_size[0] 
+        new_size_w = curr_size[1] 
+        image = image.resize((new_size_h, new_size_w))
         photo = ImageTk.PhotoImage(image)
         photos.append(photo)
-
-        label = tk.Label(root, image=photo)
-        label.pack()
-        root.geometry("200x200")
+        labels.append(tk.Label(root, image=photo, text="{}".format(gm_cell_idx)))
+        labels[i].grid(row=gridrow, column=gridcol)
+        gridcol += 1
+        if gridcol == 2:
+            gridrow += 1
+            gridcol = 0
+    
+    manual_correction_instance = ManualCorrection(root, labels, cells_w_aligned_centers, matched_cells, session_cell)
     
     root.mainloop()
 
@@ -286,6 +300,9 @@ def start_widget():
     prompt = QuestionPrompt()
     if prompt.get_result() == "Yes":
         manual_threshold = prompt.threshold
+        while not manual_threshold.isdigit():
+            print("Please enter a valid number.")
+            manual_threshold = QuestionPrompt().threshold
     else:
         manual_threshold = None
     return manual_threshold
@@ -299,14 +316,14 @@ if __name__ == '__main__':
     (they make use of a plotting object "P" and the functions are named accordingly).
     """
     # paths
-    root = r'H:\Desktop\Code\DON-019539_B'
-    statsfiles, opsfiles, cellfiles = load_files(root)
+    root_dir = r'H:\Desktop\Code\DON-019539_B'
+    statsfiles, opsfiles, cellfiles = load_files(root_dir)
     global_mask_file_path = r'\\biopz-jumbo.storage.p.unibas.ch\rg-fd02$\_Members\fingl0000\Desktop\Code\DON-019539_B\master_mask_GUI.pkl'
     session_mask_file_path = r'\\biopz-jumbo.storage.p.unibas.ch\rg-fd02$\_Members\fingl0000\Desktop\Code\DON-019539_B\session_mask_GUI.pkl'
     alignment_npz = r'\\biopz-jumbo.storage.p.unibas.ch\rg-fd02$\_Members\fingl0000\Desktop\Code\DON-019539_B\20240523\alignment\alignment_parameters.npz'
     output_dir = r'D:\Outputs\Alignment_DON-019539'
     recording_years = ['2023', '2024']
-    sessions = [dir for dir in os.listdir(root) if any(dir.startswith(year) for year in recording_years)]
+    sessions = [dir for dir in os.listdir(root_dir) if any(dir.startswith(year) for year in recording_years)]
     matfile = r'H:\Desktop\Code\Scores and Alignment\cell_reg\cellRegistered_20240819_103449.mat'
 
     # Load masks
@@ -377,6 +394,7 @@ if __name__ == '__main__':
 
 
     ############################### Cell Alignment ########################################
+
     for current_session in range(len(statsfiles)):
         if current_session == 0:
             continue
@@ -434,9 +452,9 @@ if __name__ == '__main__':
         for m in range(len(session_cells)):
             P.plot_cells_w_aligned_centers(cells_w_aligned_centers, title="Aligned centers session {} cell {}".
                                            format(sessions[current_session], m), session_cell=m, session=sessions[current_session])
-                                           """
+                                           
         P.plot_cells_w_aligned_centers(cells_w_aligned_centers, "Aligned centers for session {}".format(sessions[current_session]))
-        
+        """
 
         # Compute dtw distance between session and global mask cells
         # DTW is not capable of considering modular wrapping over the borders of arrays and it maintains monotonicity 
@@ -467,7 +485,7 @@ if __name__ == '__main__':
         
         # calculate weighted alignment score
         aligned_cells = 0
-        compute_weighted_alignment_scores(same_cells, n_cells_dtw_threshold, aligned_cells)
+        aligned_cells = compute_weighted_alignment_scores(same_cells, n_cells_dtw_threshold, aligned_cells)
         
         print("Out of {} session cells, {} cells were aligned.".format(len(session_cells), aligned_cells))
                 
@@ -475,27 +493,35 @@ if __name__ == '__main__':
         matched_cells = []
         map_best_cell_pairs(same_cells, cells_w_aligned_centers, matched_cells)
         
-        P.plot_cells_w_aligned_centers(matched_cells, "Best alignment for session {}".format(sessions[current_session]))
+        #P.plot_cells_w_aligned_centers(matched_cells, "Best alignment for session {}".format(sessions[current_session]))
 
-        # now check visually by plotting if alignment score seems to correctly align cells 
+        # now check visually by plotting if match score seems to correctly align cells 
         last = 0    
-        overlap_cells = []   
+        overlap_cells = []             
+        plot_gui = False
+  
         for session_cell, overlap_cell_data in same_cells.items():
             for overlap_cell in overlap_cell_data:
                 if len(overlap_cell) == 5:
-                    if manual_threshold: 
+                    if manual_threshold:
                         if session_cell != last:
-                            GUI(last, overlap_cells)
-                            overlap_cells = [overlap_cell]
+                            if plot_gui:
+                                manual_correction_gui(last, overlap_cells, cells_w_aligned_centers, matched_cells)
+                                overlap_cells = [overlap_cell]
+                                plot_gui = False
+                            else: 
+                                overlap_cells = [overlap_cell]
                         else:
                             overlap_cells.append(overlap_cell)
+                        if len(overlap_cell_data) > 1 and overlap_cell_data[1][-1] > overlap_cell_data[0][-1] * int(manual_threshold) / 100:
+                            plot_gui = True 
                         last = session_cell
-                    else:
+                    
+                    else: 
                         P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
                                 overlap_score=overlap_cell[0], session=sessions[current_session], alignment_score=overlap_cell[-1])
                    
         cell_mappings.append(same_cells)            
         print("One session takes", time.time() - start_time, "seconds to run")
 
-    # Structure of same_cells: {session_cell: [(overlap, global_cell_idx), ..., match_score]}   
-    # Candidates: Global Mask cell 64, global mask cell 5, global mask cell 3, global mask cell 13
+    # Structure of same_cells: {session_cell: [i, j, k...]} where i = (overlap, global_cell_idx, dtw_distance, centered_overlap, match_score)  
