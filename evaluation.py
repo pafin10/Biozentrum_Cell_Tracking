@@ -14,6 +14,14 @@ import tkinter as tk
 from PIL import Image, ImageTk
 from GUI import QuestionPrompt, ManualCorrection
 
+""""
+Most plotting has been commented out as it is not necessary for the evaluation of the alignment and takes up the majority of the script's runtime.
+If you want to plot the cells, just uncomment the relevant lines 
+(they make use of a plotting object "P" and the functions are named accordingly).
+If you dont want to be prompted about manual correction, comment out line 390.
+"""
+
+
 # Constants
 distance_threshold = 40
 sample_size = 0.4
@@ -106,7 +114,8 @@ def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_
             global_cell_coord_downsampled = downsample_sequence(global_cell_coord, len_session)
             sequence = session_cell_coord
             # No downsampling needed for session_cell_coord
-            
+        
+        
 
         # Compute DTW distance and path
         dtw_distance = np.inf
@@ -310,11 +319,7 @@ def start_widget():
    
 
 if __name__ == '__main__':
-    """"
-    Most plotting has been commented out as it is not necessary for the evaluation of the alignment and takes up the majority of the script's runtime.
-    If you want to plot the cells, just uncomment the relevant lines 
-    (they make use of a plotting object "P" and the functions are named accordingly).
-    """
+   
     # paths
     root_dir = r'H:\Desktop\Code\DON-019539_B'
     statsfiles, opsfiles, cellfiles = load_files(root_dir)
@@ -517,9 +522,8 @@ if __name__ == '__main__':
                             plot_gui = True 
                         last = session_cell
                     
-                    else: 
-                        P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
-                                overlap_score=overlap_cell[0], session=sessions[current_session], alignment_score=overlap_cell[-1])
+                    P.plot_mask("Global mask", idx=overlap_cell[1], session_cell=session_cell, session_pixels=flattened_session_cells, 
+                            overlap_score=overlap_cell[0], session=sessions[current_session], alignment_score=overlap_cell[-1])
                    
         cell_mappings.append(same_cells)            
         print("One session takes", time.time() - start_time, "seconds to run")

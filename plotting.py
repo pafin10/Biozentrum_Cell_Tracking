@@ -337,8 +337,9 @@ class Plot():
         plt.close()
     
     def plot_dtw_alignment(self, session_cell_coord, global_cell_coord, dtw_path, session_cell_idx, global_cell_idx):
-        plt.figure(figsize=(10, 5))
-        
+        plt.figure(figsize=(10, 10))
+        plt.axis('equal')
+             
         session_cell_coord = np.array(session_cell_coord)
         global_cell_coord = np.array(global_cell_coord)
         output_dir = os.path.join(self.output_dir, 'DTW_Alignment')
@@ -348,12 +349,24 @@ class Plot():
         
 
         for (i, j) in dtw_path:
-            plt.plot([session_cell_coord[i][0], global_cell_coord[j][0]], 
-                    [session_cell_coord[i][1], global_cell_coord[j][1]], 'r-')
+            plt.plot([session_cell_coord[i][1], global_cell_coord[j][1]], 
+                    [session_cell_coord[i][0], global_cell_coord[j][0]], 'r-')
         
-        plt.plot(session_cell_coord[:, 0], session_cell_coord[:, 1], 'bo-', label='Session Cell {}'.format(session_cell_idx))
-        plt.plot(global_cell_coord[:, 0], global_cell_coord[:, 1], 'go-', label='Global Cell {}'.format(global_cell_idx))
+         # Plot the session cell coordinates with rotation
+        plt.plot(
+            session_cell_coord[:, 1],  # Swap x and y
+            session_cell_coord[:, 0],   
+            'bo-', 
+            label='Session Cell {}'.format(session_cell_idx)
+        )
         
+        # Plot the global cell coordinates with rotation
+        plt.plot(
+            global_cell_coord[:, 1],    # Swap x and y
+            global_cell_coord[:, 0],    
+            'go-', 
+            label='Global Cell {}'.format(global_cell_idx)
+        )
         plt.legend()
         title = 'DTW Alignment Session Cell {} with GM cell {}'.format(session_cell_idx, global_cell_idx)
         plt.title('DTW Alignment')

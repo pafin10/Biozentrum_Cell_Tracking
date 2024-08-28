@@ -11,7 +11,7 @@ class QuestionPrompt():
         # Create the main window
         self.root = tk.Tk()
         self.root.title("Question Prompt")
-        self.root.geometry("800x400")  # Set window size
+        self.root.geometry("1600x800")  # Set window size
 
         # Ensure the window is on top and has focus
         self.root.attributes('-topmost', 1)  # Make window always on top
@@ -19,19 +19,19 @@ class QuestionPrompt():
         self.root.focus_force()  # Force focus to the window
 
         # Create a label with a question prompt
-        self.question_label = tk.Label(self.root, text="Do you want to manually control and correct close cases?", font=("Arial", 16))
+        self.question_label = tk.Label(self.root, text="Do you want to manually control and correct close cases?", font=("Arial", 24))
         self.question_label.pack(pady=20)  # Add some padding
 
         # Create a frame to hold the buttons
         self.button_frame = tk.Frame(self.root)
-        self.button_frame.pack(pady=10)
+        self.button_frame.pack(pady=20)
 
         # Create "Yes" and "No" buttons
-        self.yes_button = tk.Button(self.button_frame, text="Yes", font=("Arial", 14), command=self.on_yes)
-        self.yes_button.pack(side="left", padx=10)  # Add some padding between buttons
+        self.yes_button = tk.Button(self.button_frame, text="Yes", font=("Arial", 24), command=self.on_yes)
+        self.yes_button.pack(side="left", padx=20)  # Add some padding between buttons
 
-        self.no_button = tk.Button(self.button_frame, text="No", font=("Arial", 14), command=self.on_no)
-        self.no_button.pack(side="left", padx=10)
+        self.no_button = tk.Button(self.button_frame, text="No", font=("Arial", 24), command=self.on_no)
+        self.no_button.pack(side="left", padx=20)
     
     def on_yes(self):
         self.result = "Yes"
@@ -76,8 +76,8 @@ class ManualCorrection():
         #self.root.attributes('-topmost', 1)  # Make window always on top
         
        # Create and add the "None" label to the labels list
-        self.none_label = tk.Label(self.root, text="None", font=("Arial", 14), bg="white")
-        self.none_label.grid(row=0, column=0, padx=10, pady=10)
+        self.none_label = tk.Label(self.root, text="None", font=("Arial", 20), bg="white")
+        self.none_label.grid(row=0, column=0, padx=20, pady=20)
         self.labels.append(self.none_label)
         
         # Add image to "None" label
@@ -131,7 +131,10 @@ class ManualCorrection():
             matched_cells[i][1][1] = coord
         else:
             message = ("You have chosen none of the cells to be a good match for the current session cell.")
-            matched_cells[session_cell] = None
+            # Ensure matched_cells[i][1] is mutable
+            matched_cells[session_cell] = list(matched_cells[session_cell])
+            matched_cells[session_cell][1] = list(matched_cells[session_cell][1]) if isinstance(matched_cells[session_cell][1], tuple) else matched_cells[session_cell][1]
+            matched_cells[session_cell][1][0], matched_cells[session_cell][1][1] = None, None
 
         # Display the message box
         messagebox.showinfo("Selection", message)        
