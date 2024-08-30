@@ -39,14 +39,13 @@ def print_overlap_info(same_cells, overlap_threshold):
                     "from the global mask with overlap", corresponding_cell[0][0])
             print("There were", len(corresponding_cell), "cells with overlap > {}".format(overlap_threshold))
 
-def find_overlaps(same_cells, session_cells, filled_cells, distance_threshold, overlap_threshold):
+def find_overlaps(same_cells, session_cells, filled_cells, distance_threshold, overlap_threshold, centroids=None):
     for k in range(len(session_cells)): 
             session_cell = session_cells[k][0]
             centroid1 = session_centroids[k][0] 
 
             for i, (y_pix_filled_cell, x_pix_filled_cell) in enumerate(filled_cells):
-                #centroid2 = list(cell_reg_centroids[i][0])
-                centroid2 = list(gm_centroids[i][0])
+                centroid2 = centroids[i]
                 if (dist(centroid1, centroid2) < distance_threshold):
                     overlap = calculate_overlap(session_cell['ypix'], session_cell['xpix'], y_pix_filled_cell, x_pix_filled_cell)
                     if overlap > overlap_threshold:
@@ -115,17 +114,16 @@ def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_
             sequence = session_cell_coord
             # No downsampling needed for session_cell_coord
         
-        
 
         # Compute DTW distance and path
         dtw_distance = np.inf
         dtw_path = None
 
-        # just to test if better wo downsampling
+        # just to test if better wo downsampling - not really
         #sequence = session_cell_coord
         #global_cell_coord_downsampled = global_cell_coord
-        # Find the closest point in the global cell to the starting point of the session cell to force starting point
 
+        # Find the closest point in the global cell to the starting point of the session cell to force starting point
         start = sequence[0]
         min_dist = np.inf
         point_index = None
@@ -136,27 +134,53 @@ def compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_
                 point_index = i  
 
         # transformations to fix starting points and create sensible dtw alignment
-        global_cell_coord_downsampled = np.concatenate(
-            (global_cell_coord_downsampled[point_index+1 : ], global_cell_coord_downsampled[:point_index])
-            )
+        try: 
+            if len(global_cell_coord_downsampled) > 1:
+                if point_index == 0:
+                    global_cell_coord_downsampled = np.concatenate((global_cell_coord_downsampled[1:], global_cell_coord_downsampled[:1]))
+                
+                elif point_index == len(global_cell_coord_downsampled) - 1:
+                    global_cell_coord_downsampled = np.concatenate((global_cell_coord_downsampled[-1:], global_cell_coord_downsampled[:-1]))
+
+                else:
+                    global_cell_coord_downsampled = np.concatenate((global_cell_coord_downsampled[point_index+1 : ], 
+                                                                    global_cell_coord_downsampled[:point_index]))
+        except ValueError as e:
+            print("Error in iteration with session cell", session_cell, "and global cell", global_cell) 
+            raise e
+                
         global_cell_coord_downsampled = np.delete(global_cell_coord_downsampled, 0, axis=0)
         global_cell_coord_downsampled = global_cell_coord_downsampled[::-1]
 
         # lengths must match, for now quick fix by removing the middle points
         mid = len(sequence) // 2
-        np.delete(sequence, mid, 0)
-        np.delete(sequence, mid, 0)
+        sequence = np.delete(sequence, mid, 0)
+        if sequence.shape[0] > 0:   
+            sequence = np.delete(sequence, mid - 1, 0)
 
         permutations = generate_cyclic_permutations(sequence)
-        for perm in permutations:
-            dtw_instance = shapes.DTW(perm, global_cell_coord_downsampled)
-            dtw_distance = min(dtw_instance.dtw_dist, dtw_distance)
-            if dtw_distance == dtw_instance.dtw_dist:
-                dtw_path = dtw_instance.dtw_path
+
+        if len(sequence) > 1 and len(global_cell_coord_downsampled) > 1:
+            for perm in permutations:
+                try:
+                    dtw_instance = shapes.DTW(perm, global_cell_coord_downsampled)
+                    dtw_distance = min(dtw_instance.dtw_dist, dtw_distance)
+                    if dtw_distance == dtw_instance.dtw_dist:
+                        dtw_path = dtw_instance.dtw_path
+                except ValueError as e:
+                    print("Error in iteration with session cell", session_cell, "and global cell", global_cell)
+                    print("The permutation is", perm, "and the global cell  coord are", global_cell_coord_downsampled)
+                    raise e
+            
+            dtw_distances[session_cell].append((dtw_distance, global_cell))
+
+        else: 
+            dtw_distances[session_cell].append((float('inf'), global_cell))
         
-        dtw_distances[session_cell].append((dtw_distance, global_cell))
-        P.plot_dtw_alignment(sequence, global_cell_coord_downsampled, dtw_path, session_cell_idx=session_cell, global_cell_idx=global_cell)
         dtw_distances_list.append(dtw_distance)
+        #if dtw_path is not None:
+            #P.plot_dtw_alignment(sequence, global_cell_coord_downsampled, dtw_path, session_cell_idx=session_cell, global_cell_idx=global_cell)
+        
 
 def normalize_dtw_distances(cells_w_aligned_centers, gm_cells_footprints, dtw_distances):
     for session_cell in dtw_distances.keys():
@@ -345,48 +369,46 @@ if __name__ == '__main__':
     np_global_mask = np.array(global_mask, dtype=object)
     np_session_mask = np.array(session_mask, dtype=object)
     binary_global_mask = convert_to_binary_mask(np_global_mask, image_shape)
-
-    # Load CellRegGlobalMask object
-    cell_reg = CellRegGlobalMask(matfile)
-    cell_reg_gm = cell_reg.global_mask
-    cell_reg_centroids = cell_reg.centroids
-    cell_reg_filled_cells = fill_cells_gm(cell_reg_gm, image_shape)
-    """
-    tmp = cell_reg.footprints
-    
-    #cell_reg_filled_cells = list(cell_reg_filled_cells.values())
-    cell_reg_centroids = compute_centroids(cell_reg_filled_cells)
-
-    cnt = 0
-    for i in range(len(tmp)):
-        for j in range(len(tmp[i])):
-
-            x_coords = tmp[i][j][0]
-            y_coords = tmp[i][j][1]
-
-            cell_reg_filled_cells[i][j] = [[x_coords[k], y_coords[k]] for k in range(len(x_coords))]
-            cnt += 1
-    """
-    
-
     # Fill the area of each cell in the global mask with pixels to compute overlap and plot the filled cells
     print("Filling cell areas in global mask...")
     m, gm_cells_footprints = fill_cells_gm(np_global_mask, image_shape)
-    #binary_cell_reg_mask = convert_to_binary_mask(cell_reg_gm, image_shape)
-    #P = Plot(cell_reg_gm, binary_cell_reg_mask, os.path.join(output_dir, "plots_cellreg"))
+
+
+    # Load CellRegGlobalMask object and compute centroids and footprints
+    cell_reg = CellRegGlobalMask(matfile)
+    cell_reg_gm = cell_reg.global_mask
+    cell_reg_centroids = cell_reg.centroids
+    m1, cell_reg_cells_footprints = fill_cells_gm(cell_reg_gm, image_shape)
+    binary_cell_reg_mask = convert_to_binary_mask(cell_reg_gm, image_shape)
+
 
     # Initialize Plot object with global mask and fill cells
+    # global mask
     P = Plot(np_global_mask, binary_global_mask, os.path.join(output_dir, "plots"))
     gm_centroids = compute_centroids(gm_cells_footprints)
     P.plot_filled_cells(m, centroids=gm_centroids.values())
+    P.plot_mask("global_mask_test")
+
+    # cell reg
+    P = Plot(cell_reg_gm, binary_cell_reg_mask, os.path.join(output_dir, "plots_cellreg"))
+    P.plot_mask("cell_reg_mask")
+    P.plot_filled_cells(m1, centroids=cell_reg_centroids)
 
 
-    # transform the filled cells to pixel coordinates
+    # transform the cell footprints to pixel coordinates
+    # global mask
     for i in range(len(gm_cells_footprints)):
         cell = gm_cells_footprints[i]
         y_pix_filled_cell = [int(round(p[0])) for p in cell]
         x_pix_filled_cell = [int(round(p[1])) for p in cell]
         gm_cells_footprints[i] = (y_pix_filled_cell, x_pix_filled_cell)
+
+    # cell reg
+    for i in range(len(cell_reg_cells_footprints)):
+        cell = cell_reg_cells_footprints[i]
+        y_pix_filled_cell = [int(round(p[0])) for p in cell]
+        x_pix_filled_cell = [int(round(p[1])) for p in cell]
+        cell_reg_cells_footprints[i] = (y_pix_filled_cell, x_pix_filled_cell)
 
 
 
@@ -420,7 +442,11 @@ if __name__ == '__main__':
         # calculate session centroids, more accurate than med, important for metrics
         session_centroids = compute_centroids(all_pixels)
 
-        find_overlaps(same_cells, session_cells, gm_cells_footprints, distance_threshold, overlap_threshold)
+        # adjust the centroids to the global mask
+        gm_centroids = [list(gm_centroids.values())[i][0] for i in range(len(gm_centroids))]
+
+        find_overlaps(same_cells, session_cells, cell_reg_cells_footprints, distance_threshold, overlap_threshold, centroids=cell_reg_centroids)
+        #find_overlaps(same_cells, session_cells, gm_cells_footprints, distance_threshold, overlap_threshold, centroids=gm_centroids)
         print_overlap_info(same_cells, overlap_threshold)
 
         # store the pixel coordinates of the session cells for plotting
@@ -428,8 +454,9 @@ if __name__ == '__main__':
         flattened_session_cells = {key: (list(value[0]), list(value[1])) for key, value in session_cells_pixels.items()}
 
         # plot all cells with overlap and their overlap distribution
-        P.plot_distribution_of_overlap_number(same_cells, session=current_session)
-        P.plot_cells_with_overlap(same_cells, flattened_session_cells, filled_global_cells=gm_cells_footprints)
+        #P.plot_distribution_of_overlap_number(same_cells, session=current_session)
+        #P.plot_cells_with_overlap(same_cells, flattened_session_cells, filled_global_cells=gm_cells_footprints)
+        #P.plot_cells_with_overlap(same_cells, flattened_session_cells, filled_global_cells=cell_reg_cells_footprints)
 
         # Plot the overlap distribution for each overlapping cell 
         """
@@ -442,15 +469,15 @@ if __name__ == '__main__':
         """
         
         # Align the centers of the cells from the session with the global mask
-        global_mask_list_struct = convert_global_mask_to_list_structure(np_global_mask) 
-        #global_mask_list_struct = cell_reg_gm
+        # global_mask_list_struct = convert_global_mask_to_list_structure(np_global_mask) 
+        global_mask_list_struct = cell_reg_gm
         session_cells_all_pixels_list_struct = [[[x, y] for x, y in zip(cell[0], cell[1])] for cell in flattened_session_cells.values()]
         session_cells_contours_list_struct = extract_contours(session_cells_all_pixels_list_struct)
 
         # Initialize Shapes object and align the centers of the cells on a per - cell basis
         shapes = Shapes(global_mask_list_struct, session_cells_contours_list_struct)
-        cells_w_aligned_centers = shapes.align_centers(gm_centroids, session_centroids)
-        #cells_w_aligned_centers = shapes.align_centers(cell_reg_centroids, session_centroids)
+        #cells_w_aligned_centers = shapes.align_centers(gm_centroids, session_centroids)
+        cells_w_aligned_centers = shapes.align_centers(cell_reg_centroids, session_centroids)
 
         # plot example cells
         """
@@ -470,7 +497,8 @@ if __name__ == '__main__':
         compute_dtw_distances(cells_w_aligned_centers, dtw_distances, dtw_distances_list)
 
         # Normalize DTW distances per session cell
-        normalize_dtw_distances(cells_w_aligned_centers, gm_cells_footprints, dtw_distances)
+        normalize_dtw_distances(cells_w_aligned_centers, cell_reg_cells_footprints, dtw_distances)
+        #normalize_dtw_distances(cells_w_aligned_centers, gm_cells_footprints, dtw_distances)
         
         # check skew 
         P.plot_distribution(dtw_distances_list, "Distribution of DTW distances")

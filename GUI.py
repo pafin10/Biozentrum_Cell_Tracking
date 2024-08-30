@@ -112,7 +112,6 @@ class ManualCorrection():
             while k < len(cells_w_aligned_centers[j]) - 1 and cells_w_aligned_centers[j][k][0] != gm_cell:
                 k += 1
 
-            # Perform the swap
             self.swap(cells_w_aligned_centers[j], k, 0)  # Swap with the first element in cells_w_aligned_centers[j]
             
             # Get the updated coordinate

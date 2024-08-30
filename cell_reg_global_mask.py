@@ -17,12 +17,13 @@ class CellRegGlobalMask:
         self.convert_to_footprints(self.binary_footprints)
         self.average_footprints()
         self.get_avg_cell_contours()
-        self.reformat()
+        #self.reformat()
     
     def load_mat(self, matfile):
         with h5py.File(matfile, 'r') as f:
             struct = f['cell_registered_struct']
-            self.centroids = struct['registered_cells_centroids'][:][0]
+            self.centroids = struct['registered_cells_centroids'][:][:]
+            self.centroids = [[self.centroids[0][i], self.centroids[1][i]] for i in range(len(self.centroids[0]))]
             self.mapping = struct['cell_to_index_map'][:]
             self.binary_footprints = struct['spatial_footprints_corrected'][:][0]
             self.n_sessions = len(self.binary_footprints)
@@ -49,47 +50,66 @@ class CellRegGlobalMask:
     
 
     def average_footprints(self):
+        # DEBUG THIS !!
         self.avg_footprints = []
         cnt = 0
-        # Assuming each cell's footprint is stored as a list of (x, y) coordinates
+        num_base_sessions = len(self.footprints[0])
+
+        # Iterating over each cell and its corresponding list of indices
         for cell, cell_list in self.mapping.items():
             all_x, all_y = [], []
-            if cnt == len(self.footprints[0]) - 1:
-                break
-            # Start with the base session
+
+            # Make sure cnt does not exceed the footprint index range
+            if cnt >= num_base_sessions:
+                cnt = num_base_sessions - 1
+
+            # Add the base session footprint to the lists
             base_x, base_y = self.footprints[0][cnt][0], self.footprints[0][cnt][1]
             all_x.extend(base_x)
             all_y.extend(base_y)
 
             counted = False
-            # Add points from other sessions
-            for k in range(len(cell_list)):
-                if cell_list[k] != -1:
-                    if not counted: 
+            valid_entries = 1  # Start counting with the base session
+
+            # Iterate through each session in the cell list
+            for k, index in enumerate(cell_list):
+                if index != -1:
+                    # Only increment cnt once per valid cell list if not counted
+                    if not counted:
                         cnt += 1
                         counted = True
-                    cell_x, cell_y = self.footprints[k + 1][cell_list[k]]
-                    all_x.extend(cell_x)
-                    all_y.extend(cell_y)
-                    
 
-            # Convert to numpy arrays
+                    # Retrieve the additional session footprints
+                    try:
+                        cell_x, cell_y = self.footprints[k + 1][index]
+                        all_x.extend(cell_x)
+                        all_y.extend(cell_y)
+                        valid_entries += 1
+                    except IndexError:
+                        # Catch index errors if footprints or cell indices are mismatched
+                        print(f"Index error for cell {cell} at k={k}, index={index}")
+
+            # Create numpy arrays for all collected coordinates
             all_x = np.array(all_x)
             all_y = np.array(all_y)
 
-            # Create a density map
-            global image_size
+            # Define the size of the density map
             image_size = 512
-            grid_size_x = image_size + 1  
-            grid_size_y = image_size + 1  
+            grid_size_x = image_size + 1
+            grid_size_y = image_size + 1
 
+            # Initialize the density map
             density_map = np.zeros((grid_size_y, grid_size_x))
+
+            # Populate the density map with coordinates
             for x, y in zip(all_x, all_y):
-                density_map[y, x] += 1
+                if 0 <= x < grid_size_x and 0 <= y < grid_size_y:
+                    density_map[y, x] += 1
 
             # Normalize the density map to create the average footprint
-            normalized_footprint = density_map / len(cell_list)
+            normalized_footprint = density_map / valid_entries if valid_entries > 0 else density_map
 
+            # Append the resulting normalized footprint to the average footprints list
             self.avg_footprints.append(normalized_footprint)
 
     def get_avg_cell_contours(self):
@@ -106,6 +126,10 @@ class CellRegGlobalMask:
             contours, _ = cv2.findContours(thresholded_map.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
             # RETR_EXTERNAL retrieves only the outermost contours, 
             # CHAIN_APPROX_SIMPLE compresses horizontal, vertical, and diagonal segments and leaves only their end points
+            contours = contours[0].tolist()
+            contours.append(contours[0]) # Close the contour
+            contours = [contours[i][0] for i in range(len(contours))]
+
             self.global_mask.append(contours)
 
     def reformat(self):

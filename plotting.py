@@ -24,6 +24,9 @@ class Plot():
         if session_cell is not None and session_pixels is not None and session is not None:
             output_dir = os.path.join(self.output_dir, 'Session ' + str(session))
             os.makedirs(output_dir, exist_ok=True)
+        else: 
+            if output_dir is None:
+                output_dir = self.output_dir
 
         # Flatten the mask if it's a list of lists or nested structure
         if isinstance(self.mask, np.ndarray):
@@ -33,7 +36,7 @@ class Plot():
 
         # Iterate through each cell in the mask and extract the pixel coordinates
         for cnt, cell in enumerate(self.mask):
-            if isinstance(cell, (np.ndarray, list)) and cell.ndim == 2 and cell.shape[1] == 2:
+            if isinstance(cell, (np.ndarray, list)) and len(cell[0]) == 2:
                 for pixel in cell:
                     if len(pixel) == 2:
                         x_coords.append(pixel[0])
@@ -176,7 +179,7 @@ class Plot():
         plt.figure(figsize=(8, 8))
         plt.imshow(mask, cmap='gray')
 
-        if centroids:
+        if any(centroids):
             for centroid in centroids:
                 if len(centroid) == 2:
                     plt.plot(centroid[1], centroid[0], 'ro', markersize=2)  # Red dot for the centroid
@@ -186,6 +189,8 @@ class Plot():
             plt.title('Filled Cells')
         plt.axis('off')
         #plt.show()
+        plt.savefig(os.path.join(self.output_dir, 'filled_cells.png'), bbox_inches='tight', pad_inches=0)
+        plt.close()
 
     def plot_cells_with_overlap(self, overlap_mapping, original_cells, filled_global_cells):
         plt.figure(figsize=(10, 10))

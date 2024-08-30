@@ -21,8 +21,7 @@ class Shapes():
         cells_aligned_centers = []
         for i, session_centroid in session_centroids.items():
             session_centroid = session_centroid[0] 
-            for j, gm_centroid in gm_centroids.items(): 
-                gm_centroid = gm_centroid[0]
+            for j, gm_centroid in enumerate(gm_centroids): 
 
                 if dist(session_centroid, gm_centroid) < 20:
                     xdiff = session_centroid[0] - gm_centroid[0]
@@ -45,7 +44,7 @@ class Shapes():
         
         def computeDTW(self):
             
-            self.dtw_path, dtw_dist = dtw_path(self.cell1, self.cell2, global_constraint='itakura', itakura_max_slope=5)
+            self.dtw_path, dtw_dist = dtw_path(self.cell1, self.cell2, global_constraint='itakura', itakura_max_slope=10)
             self.dtw_dist = dtw_dist / len(self.dtw_path)
             self.soft_dtw_dist = soft_dtw(self.cell1, self.cell2, gamma=0.1)
 
