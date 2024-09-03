@@ -8,7 +8,7 @@ corresponding session cell within a certain distance. The set of all pixels for 
 This should incorporate mostly information about original position.
 2. Quantification measures for scoring the similarity of cell shapes after aligning their centers. 
 For this, I use [dynamic time warping](https://en.wikipedia.org/wiki/Dynamic_time_warping).
-This should incorporate for shape and geometric nuances. 
+This should incorporate shape and geometric nuances. 
 3. The overlap after aligining the centers to account for cases with few matches and to include additional shape information. 
 This should account for shape and size information. 
 Partly, it also acts as a control for cases where DTW distances are close and the most similar match in terms of DTW is ambiguous. 
